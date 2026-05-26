@@ -4,7 +4,7 @@ const cors = require('cors');
 const mercadopago = require('mercadopago');
 const admin = require('firebase-admin');
 
-// Inicializar Firebase con variables de entorno (sin archivo JSON)
+// Inicializar Firebase con variables de entorno
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -116,7 +116,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
-
-
-
-Fix: usar variables de entorno en lugar de archivo JSON
