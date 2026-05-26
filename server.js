@@ -53,7 +53,7 @@ app.post('/api/create-subscription', async (req, res) => {
   reason: plan.title,
   external_reference: userId,
   payer_email: payerEmail,
-  site_id: 'MLC',           // ← Agrega esta línea (código para Chile)
+  // site_id: 'MLC',  // ← Comenta o elimina esta línea
   auto_recurring: {
     frequency: plan.frequency,
     frequency_type: 'months',
