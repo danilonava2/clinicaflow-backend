@@ -5,20 +5,22 @@ const mercadopago = require('mercadopago');
 const admin = require('firebase-admin');
 
 // Inicializar Firebase con variables de entorno
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  })
-});
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+    })
+  });
+}
 const db = admin.firestore();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configurar Mercado Pago (versión correcta)
+// Configurar Mercado Pago
 mercadopago.configure({
   access_token: process.env.MERCADOPAGO_ACCESS_TOKEN
 });
@@ -26,6 +28,10 @@ mercadopago.configure({
 // Ruta de prueba (para verificar que el servidor funciona)
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'ClinicaFlow Backend funcionando' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).send('OK');
 });
 
 // Endpoint para crear suscripción
@@ -117,7 +123,8 @@ app.post('/api/webhook', async (req, res) => {
   res.status(200).end();
 });
 
+// Usar el puerto que Render asigna (process.env.PORT) o 3000 por defecto
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor corriendo en http://0.0.0.0:${PORT}`);
 });
