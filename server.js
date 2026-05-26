@@ -4,10 +4,13 @@ const cors = require('cors');
 const mercadopago = require('mercadopago');
 const admin = require('firebase-admin');
 
-// Inicializar Firebase Admin
-const serviceAccount = require('./firebase-service-account.json');
+// Inicializar Firebase con variables de entorno (sin archivo JSON)
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+  })
 });
 const db = admin.firestore();
 
@@ -35,7 +38,6 @@ app.post('/api/create-subscription', async (req, res) => {
       return res.status(400).json({ error: 'Plan no válido' });
     }
     
-    // Crear suscripción en Mercado Pago
     const subscription = {
       reason: plan.title,
       external_reference: userId,
@@ -46,13 +48,12 @@ app.post('/api/create-subscription', async (req, res) => {
         transaction_amount: plan.amount,
         currency_id: 'CLP'
       },
-      back_url: 'https://tu-app.com/success',
+      back_url: process.env.BACK_URL || 'https://tu-app.com/success',
       status: 'pending'
     };
     
     const response = await mercadopago.preapproval.create(subscription);
     
-    // Guardar estado pendiente en Firebase
     await db.collection('subscriptions').doc(userId).set({
       userId: userId,
       plan: planType,
@@ -88,7 +89,7 @@ app.get('/api/check-pro', async (req, res) => {
   }
 });
 
-// Webhook para confirmar pagos
+// Webhook
 app.post('/api/webhook', async (req, res) => {
   console.log('Webhook recibido:', req.body);
   
@@ -98,7 +99,6 @@ app.post('/api/webhook', async (req, res) => {
       const subscriptionId = data.id;
       const userId = data.external_reference;
       
-      // Actualizar estado en Firebase
       await db.collection('subscriptions').doc(userId).update({
         status: 'active',
         subscriptionId: subscriptionId,
