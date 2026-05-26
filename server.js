@@ -18,9 +18,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configurar Mercado Pago
+// Configurar Mercado Pago (versión correcta)
 mercadopago.configure({
   access_token: process.env.MERCADOPAGO_ACCESS_TOKEN
+});
+
+// Ruta de prueba (para verificar que el servidor funciona)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'ClinicaFlow Backend funcionando' });
 });
 
 // Endpoint para crear suscripción
@@ -89,7 +94,7 @@ app.get('/api/check-pro', async (req, res) => {
   }
 });
 
-// Webhook
+// Webhook para recibir notificaciones de Mercado Pago
 app.post('/api/webhook', async (req, res) => {
   console.log('Webhook recibido:', req.body);
   
