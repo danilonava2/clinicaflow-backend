@@ -49,19 +49,20 @@ app.post('/api/create-subscription', async (req, res) => {
       return res.status(400).json({ error: 'Plan no válido' });
     }
     
-    const subscription = {
-      reason: plan.title,
-      external_reference: userId,
-      payer_email: payerEmail,
-      auto_recurring: {
-        frequency: plan.frequency,
-        frequency_type: 'months',
-        transaction_amount: plan.amount,
-        currency_id: 'CLP'
-      },
-      back_url: process.env.BACK_URL || 'https://tu-app.com/success',
-      status: 'pending'
-    };
+   const subscription = {
+  reason: plan.title,
+  external_reference: userId,
+  payer_email: payerEmail,
+  site_id: 'MLC',           // ← Agrega esta línea (código para Chile)
+  auto_recurring: {
+    frequency: plan.frequency,
+    frequency_type: 'months',
+    transaction_amount: plan.amount,
+    currency_id: 'CLP'
+  },
+  back_url: process.env.BACK_URL || 'https://tu-app.com/success',
+  status: 'pending'
+};
     
     const response = await mercadopago.preapproval.create(subscription);
     
