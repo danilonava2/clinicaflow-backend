@@ -116,3 +116,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
+
+
+
+Fix: usar variables de entorno en lugar de archivo JSON
