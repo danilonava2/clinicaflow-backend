@@ -47,6 +47,9 @@ app.post('/api/create-subscription', async (req, res) => {
     const plan = planConfig[planType];
     if (!plan) {
       return res.status(400).json({ error: 'Plan no válido' });
+
+      console.log('Respuesta de Mercado Pago:', response.body);
+console.log('initPoint:', response.body.init_point);
     }
     
    const subscription = {
