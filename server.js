@@ -7,9 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Archivo para guardar el estado Pro
 const PRO_STATUS_FILE = './pro-status.json';
-const PENDING_PAYMENTS_FILE = './pending-payments.json';
 
 function loadProStatus() {
   try {
@@ -24,45 +22,27 @@ function saveProStatus(status) {
   fs.writeFileSync(PRO_STATUS_FILE, JSON.stringify(status, null, 2));
 }
 
-function loadPendingPayments() {
-  try {
-    if (fs.existsSync(PENDING_PAYMENTS_FILE)) {
-      return JSON.parse(fs.readFileSync(PENDING_PAYMENTS_FILE, 'utf8'));
-    }
-  } catch (error) {}
-  return {};
-}
-
-function savePendingPayments(payments) {
-  fs.writeFileSync(PENDING_PAYMENTS_FILE, JSON.stringify(payments, null, 2));
-}
-
 let proStatus = loadProStatus();
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'ClinicaFlow Backend funcionando' });
 });
 
-// ==================== ENDPOINTS ====================
+// ==================== LINKS DE PAGO REALES ====================
+const LINKS_PAGO = {
+  monthly: 'https://mpago.la/19YCv1c',
+  yearly: 'https://mpago.la/19YCv1c'  // Cambiar cuando tengas el link anual
+};
 
-// Crear solicitud de pago (devuelve el link)
 app.post('/api/create-payment', (req, res) => {
   try {
     const { planType, userId } = req.body;
     
-    console.log(`📝 Solicitud de pago recibida: plan=${planType}, userId=${userId}`);
+    console.log(`📝 Solicitud de pago: plan=${planType}, userId=${userId}`);
     
     const planConfig = {
-      monthly: {
-        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=a2a42ba155144b7094ee833879e72c54',
-        days: 30,
-        price: 2500
-      },
-      yearly: {
-        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=cd07136c4ec94789bab72dac67c08fb9',
-        days: 365,
-        price: 20000
-      }
+      monthly: { days: 30, price: 10 },
+      yearly: { days: 365, price: 100 }
     };
     
     const plan = planConfig[planType];
@@ -70,30 +50,82 @@ app.post('/api/create-payment', (req, res) => {
       return res.status(400).json({ error: 'Plan no válido' });
     }
     
-    // Guardar solicitud pendiente
-    const pendingPayments = loadPendingPayments();
-    pendingPayments[userId] = {
+    const pendingFile = './pending-payments.json';
+    let pending = {};
+    try {
+      if (fs.existsSync(pendingFile)) {
+        pending = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
+      }
+    } catch(e) {}
+    
+    pending[userId] = {
       plan: planType,
       days: plan.days,
-      createdAt: Date.now(),
-      url: plan.url
+      createdAt: Date.now()
     };
-    savePendingPayments(pendingPayments);
-    
-    console.log(`✅ Enlace generado para usuario ${userId}`);
+    fs.writeFileSync(pendingFile, JSON.stringify(pending, null, 2));
     
     res.json({ 
       success: true, 
-      url: plan.url,
+      url: LINKS_PAGO[planType],
       message: 'Serás redirigido a Mercado Pago para completar el pago.'
     });
   } catch (error) {
-    console.error('❌ Error en create-payment:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('❌ Error:', error);
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
-// Verificar estado Pro
+app.post('/api/webhook', (req, res) => {
+  console.log('🔔 Webhook recibido:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    const { type, data } = req.body;
+    
+    if (type === 'payment') {
+      const externalReference = data.external_reference;
+      const status = data.status;
+      
+      console.log(`📝 Pago: Ref=${externalReference}, Estado=${status}`);
+      
+      if (status === 'approved') {
+        const pendingFile = './pending-payments.json';
+        let pending = {};
+        try {
+          if (fs.existsSync(pendingFile)) {
+            pending = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
+          }
+        } catch(e) {}
+        
+        const pendingData = pending[externalReference];
+        if (pendingData) {
+          const days = pendingData.days;
+          const expirationDate = new Date();
+          expirationDate.setDate(expirationDate.getDate() + days);
+          
+          proStatus[externalReference] = {
+            status: 'active',
+            plan: pendingData.plan,
+            expirationDate: expirationDate.toISOString(),
+            activatedAt: new Date().toISOString()
+          };
+          saveProStatus(proStatus);
+          
+          delete pending[externalReference];
+          fs.writeFileSync(pendingFile, JSON.stringify(pending, null, 2));
+          
+          console.log(`✅ Usuario ${externalReference} activado como Pro hasta ${expirationDate.toISOString()}`);
+        }
+      }
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('❌ Error en webhook:', error);
+    res.status(500).send('Error');
+  }
+});
+
 app.get('/api/check-pro', (req, res) => {
   try {
     const { userId } = req.query;
@@ -106,7 +138,6 @@ app.get('/api/check-pro', (req, res) => {
       return res.json({ isPro: false });
     }
     
-    // Verificar expiración
     const expirationDate = new Date(userPro.expirationDate);
     if (new Date() > expirationDate) {
       userPro.status = 'expired';
@@ -121,88 +152,8 @@ app.get('/api/check-pro', (req, res) => {
       expirationDate: userPro.expirationDate
     });
   } catch (error) {
-    console.error('❌ Error en check-pro:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// ==================== WEBHOOK DE MERCADO PAGO ====================
-app.post('/api/webhook', (req, res) => {
-  console.log('🔔 Webhook recibido:', JSON.stringify(req.body, null, 2));
-  
-  try {
-    const { type, data } = req.body;
-    
-    if (type === 'subscription_preapproval') {
-      const externalReference = data.external_reference;
-      const payerEmail = data.payer_email;
-      const status = data.status;
-      
-      console.log(`📝 Suscripción: Usuario=${externalReference}, Email=${payerEmail}, Estado=${status}`);
-      
-      // Buscar si hay un pago pendiente para este usuario
-      const pendingPayments = loadPendingPayments();
-      const pendingData = externalReference && pendingPayments[externalReference];
-      
-      // Determinar los días del plan
-      let days = 30; // Por defecto mensual
-      let planType = 'monthly';
-      
-      if (pendingData) {
-        days = pendingData.days;
-        planType = pendingData.plan;
-        // Limpiar pago pendiente
-        delete pendingPayments[externalReference];
-        savePendingPayments(pendingPayments);
-      }
-      
-      // Activar Pro
-      if (status === 'authorized' || status === 'active') {
-        const expirationDate = new Date();
-        expirationDate.setDate(expirationDate.getDate() + days);
-        
-        proStatus[externalReference] = {
-          status: 'active',
-          plan: planType,
-          expirationDate: expirationDate.toISOString(),
-          activatedAt: new Date().toISOString(),
-          email: payerEmail
-        };
-        saveProStatus(proStatus);
-        
-        console.log(`✅ Usuario ${externalReference} activado como Pro hasta ${expirationDate.toISOString()}`);
-      }
-    }
-    
-    res.status(200).send('OK');
-  } catch (error) {
-    console.error('❌ Error en webhook:', error);
-    res.status(500).send('Error');
-  }
-});
-
-// Endpoint manual para activar Pro (fallback si webhook falla)
-app.post('/api/activate-manual', (req, res) => {
-  try {
-    const { userId, planType } = req.body;
-    const days = planType === 'monthly' ? 30 : 365;
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + days);
-    
-    proStatus[userId] = {
-      status: 'active',
-      plan: planType,
-      expirationDate: expirationDate.toISOString(),
-      activatedAt: new Date().toISOString(),
-      manual: true
-    };
-    saveProStatus(proStatus);
-    
-    console.log(`✅ Activación manual: Usuario ${userId} Pro hasta ${expirationDate.toISOString()}`);
-    res.json({ success: true, expirationDate: expirationDate.toISOString() });
-  } catch (error) {
-    console.error('❌ Error en activación manual:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('❌ Error:', error);
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
