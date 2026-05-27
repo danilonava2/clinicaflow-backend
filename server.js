@@ -54,12 +54,12 @@ app.post('/api/create-payment', (req, res) => {
     
     const planConfig = {
       monthly: {
-        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=409443b4d5c948b7af3913267bf78dce',
+        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=7e34b305fd0949fca73ea236e630b895',
         days: 30,
         price: 2500
       },
       yearly: {
-        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=80e5fcdffc6f41b1b5f773b19e21e3b6',
+        url: 'https://www.mercadopago.cl/subscriptions/checkout?preapproval_plan_id=6512dee918ac444094fb8cb7eb92e147',
         days: 365,
         price: 20000
       }
